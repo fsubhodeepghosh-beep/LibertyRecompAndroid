@@ -29,37 +29,52 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
+      # The hosted Windows runner already has an Android SDK. Avoid
+      # setup-android's attempt to install the obsolete SDK package "tools".
       - name: Install Android platform and NDK
-        shell: bash
+        shell: pwsh
         run: |
-          sdkmanager --install \
-            "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0" \
-            "ndk;29.0.14206865"
-          yes | sdkmanager --licenses || true
+          $ErrorActionPreference = "Stop"
+          $sdkRoot = $env:ANDROID_HOME
+          if (-not $sdkRoot) { $sdkRoot = $env:ANDROID_SDK_ROOT }
+          if (-not $sdkRoot -or -not (Test-Path $sdkRoot)) {
+            throw "Android SDK root not found in ANDROID_HOME or ANDROID_SDK_ROOT."
+          }
+
+          $sdkManager = Get-ChildItem -Path (Join-Path $sdkRoot "cmdline-tools") -Filter "sdkmanager.bat" -Recurse -ErrorAction Stop |
+            Select-Object -First 1
+          if (-not $sdkManager) {
+            throw "sdkmanager.bat was not found under $sdkRoot\cmdline-tools."
+          }
+
+          & $sdkManager.FullName --install "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;29.0.14206865"
+          if ($LASTEXITCODE -ne 0) { throw "sdkmanager package installation failed with exit code $LASTEXITCODE." }
+
+          1..100 | ForEach-Object { "y" } | & $sdkManager.FullName --licenses
+          if ($LASTEXITCODE -ne 0) { throw "Android SDK license acceptance failed." }
+
+          "ANDROID_HOME=$sdkRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "ANDROID_NDK=$sdkRoot\ndk\29.0.14206865" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "NDK_VER=29.0.14206865" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Install CMake 3.31 and Ninja
         shell: pwsh
         run: |
           choco install cmake --version=3.31.6 --installargs 'ADD_CMAKE_TO_PATH=System' -y
+          if ($LASTEXITCODE -ne 0) { throw "CMake installation failed." }
           choco install ninja -y
+          if ($LASTEXITCODE -ne 0) { throw "Ninja installation failed." }
 
       - name: Build native libraries and debug APK
         shell: bash
         env:
           STRIP: "1"
-          NDK_VER: "29.0.14206865"
         run: |
           set -euo pipefail
 
-          # Convert Windows runner paths to Git Bash paths expected by env.sh.
           export ANDROID_HOME="$(cygpath -u "$ANDROID_HOME")"
           export ANDROID_SDK_ROOT="$ANDROID_HOME"
-          export ANDROID_NDK="$ANDROID_HOME/ndk/$NDK_VER"
+          export ANDROID_NDK="$(cygpath -u "$ANDROID_NDK")"
           export JAVA_HOME="$(cygpath -u "$JAVA_HOME")"
           export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH"
 
@@ -67,6 +82,7 @@ jobs:
           java -version
           cmake --version
           ninja --version
+          test -f "$ANDROID_NDK/build/cmake/android.toolchain.cmake"
 
           python tools/setup_repo.py
           bash os/android/scripts/build_driver_proxy.sh
