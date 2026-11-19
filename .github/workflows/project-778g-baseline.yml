@@ -1,0 +1,83 @@
+name: Project 778G - Liberty Recomp Android baseline
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    # Upstream documents this Android build on Windows + Git Bash.
+    runs-on: windows-2022
+    timeout-minutes: 360
+
+    steps:
+      - name: Check out source and submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform and NDK
+        shell: bash
+        run: |
+          sdkmanager --install \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
+            "ndk;29.0.14206865"
+          yes | sdkmanager --licenses || true
+
+      - name: Install CMake 3.31 and Ninja
+        shell: pwsh
+        run: |
+          choco install cmake --version=3.31.6 --installargs 'ADD_CMAKE_TO_PATH=System' -y
+          choco install ninja -y
+
+      - name: Build native libraries and debug APK
+        shell: bash
+        env:
+          STRIP: "1"
+          NDK_VER: "29.0.14206865"
+        run: |
+          set -euo pipefail
+
+          # Convert Windows runner paths to Git Bash paths expected by env.sh.
+          export ANDROID_HOME="$(cygpath -u "$ANDROID_HOME")"
+          export ANDROID_SDK_ROOT="$ANDROID_HOME"
+          export ANDROID_NDK="$ANDROID_HOME/ndk/$NDK_VER"
+          export JAVA_HOME="$(cygpath -u "$JAVA_HOME")"
+          export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH"
+
+          python --version
+          java -version
+          cmake --version
+          ninja --version
+
+          python tools/setup_repo.py
+          bash os/android/scripts/build_driver_proxy.sh
+          STRIP=1 bash os/android/scripts/build_native.sh
+          rm -f os/android/app/build/outputs/apk/debug/app-debug.apk
+          bash os/android/scripts/build_apk.sh
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Project-778G-LibertyRecompAndroid-debug
+          path: os/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
