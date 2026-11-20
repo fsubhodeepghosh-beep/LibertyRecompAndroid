@@ -72,11 +72,11 @@ jobs:
           p = Path("emulator-core/src/main/cpp/CMakeLists.txt")
           s = p.read_text()
           old = "add_compile_options(-march=armv8.2-a+lse+dotprod+fp16+rcpc+crc)"
-          new = "add_compile_options(-mcpu=cortex-a78)"
+          new = "add_compile_options(-march=armv8.2-a+lse+dotprod+fp16+rcpc+crc -mtune=cortex-a78)"
           if s.count(old) != 1:
               raise SystemExit("Expected ARM baseline flag exactly once; refusing unsafe patch")
           p.write_text(s.replace(old, new))
-          print("Applied Cortex-A78 target for Snapdragon 778G performance cores")
+          print("Applied Cortex-A78 tuning while retaining the existing shared-core ISA baseline")
           PY
 
       - name: Build optimised Xendroid+ release APK
@@ -107,7 +107,7 @@ jobs:
           test -s "$APK"
           sha256sum "$APK" | tee apk-sha256.txt
           echo "Project 778G tuned release; source commit: $XENDROID_COMMIT" >> "$GITHUB_STEP_SUMMARY"
-          echo "Native CPU target: Cortex-A78; Release -O2 + ThinLTO" >> "$GITHUB_STEP_SUMMARY"
+          echo "Native tuning: Cortex-A78 scheduler tuning with the existing ARMv8.2 ISA baseline retained for A55/A78 migration safety; Release -O2 + ThinLTO" >> "$GITHUB_STEP_SUMMARY"
           echo "Package: xendroid.compose.778g" >> "$GITHUB_STEP_SUMMARY"
           echo "Not yet device-benchmarked; no FPS guarantee." >> "$GITHUB_STEP_SUMMARY"
 
