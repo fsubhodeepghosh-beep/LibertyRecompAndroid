@@ -1,0 +1,96 @@
+name: Project 778G - Xendroid+ Android baseline
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/project-778g-xendroid.yml"
+      - "project-778g-xendroid/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: project-778g-xendroid
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    container:
+      image: ghcr.io/cirruslabs/android-sdk:35
+    env:
+      ANDROID_SDK_ROOT: /opt/android-sdk-linux
+      ANDROID_NDK_VERSION: 29.0.14206865
+      CMAKE_VERSION: 3.30.3
+      BUILD_TOOLS_VERSION: 35.0.0
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+      GRADLE_OPTS: -Dorg.gradle.daemon=false
+      USE_CCACHE: "true"
+      CCACHE_COMPILERCHECK: content
+    steps:
+      - name: Install build tools
+        run: |
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+            git ninja-build python3 glslang-tools spirv-tools ccache
+
+      - name: Checkout Project 778G
+        uses: actions/checkout@v4
+
+      - name: Checkout Xendroid+ source
+        run: |
+          git clone --depth 1 https://github.com/phforner0/Xendroid-Plus.git xendroid
+          cd xendroid
+          echo "XENDROID_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "XENDROID_SHORT_SHA=$(git rev-parse --short=8 HEAD)" >> "$GITHUB_ENV"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: false
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses > /dev/null
+          for package in "ndk;$ANDROID_NDK_VERSION" "cmake;$CMAKE_VERSION" \
+                         "build-tools;$BUILD_TOOLS_VERSION" "platforms;android-35"; do
+            dir="$ANDROID_SDK_ROOT/$(echo "$package" | tr ';' '/')"
+            [ -d "$dir" ] || sdkmanager "$package" > /dev/null
+          done
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/$ANDROID_NDK_VERSION" >> "$GITHUB_ENV"
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > xendroid/local.properties
+
+      - name: Build Xendroid+ debug APK
+        working-directory: xendroid
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --console=plain --build-cache --parallel \
+            -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" \
+            -PgitHash="$XENDROID_SHORT_SHA" \
+            :app:assembleDebug
+
+      - name: Verify APK exists and report identity
+        run: |
+          APK="xendroid/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          sha256sum "$APK" | tee apk-sha256.txt
+          echo "### Project 778G Xendroid+ baseline" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Upstream source commit: `$XENDROID_COMMIT`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Package: `xendroid.compose.debug`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- APK SHA-256: `$(cut -d' ' -f1 apk-sha256.txt)`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- This is an unmodified upstream baseline, not yet a Snapdragon 778G optimisation." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload APK and build identity
+        uses: actions/upload-artifact@v4
+        with:
+          name: Project-778G-XendroidPlus-baseline
+          path: |
+            xendroid/app/build/outputs/apk/debug/app-debug.apk
+            apk-sha256.txt
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
