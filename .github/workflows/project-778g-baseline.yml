@@ -2,6 +2,11 @@ name: Project 778G - Liberty Recomp Android baseline
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'os/android/scripts/build_native.sh'
+      - '.github/workflows/project-778g-baseline.yml'
 
 permissions:
   contents: read
