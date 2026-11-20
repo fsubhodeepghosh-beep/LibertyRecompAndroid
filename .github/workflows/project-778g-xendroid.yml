@@ -86,7 +86,7 @@ jobs:
           ./gradlew --no-daemon --console=plain --build-cache --parallel \
             -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" \
             -PgitHash="$XENDROID_SHORT_SHA-778G" \
-            -PxendroidReleaseIdSuffix=.778g \
+            -PxendroidReleaseIdSuffix=.snapdragon778g \
             -PxendroidReleaseDebuggable \
             :app:assembleRelease
           mkdir -p "$HOME/.android"
@@ -108,7 +108,7 @@ jobs:
           sha256sum "$APK" | tee apk-sha256.txt
           echo "Project 778G tuned release; source commit: $XENDROID_COMMIT" >> "$GITHUB_STEP_SUMMARY"
           echo "Native tuning: Cortex-A78 scheduler tuning with the existing ARMv8.2 ISA baseline retained for A55/A78 migration safety; Release -O2 + ThinLTO" >> "$GITHUB_STEP_SUMMARY"
-          echo "Package: xendroid.compose.778g" >> "$GITHUB_STEP_SUMMARY"
+          echo "Package: xendroid.compose.snapdragon778g" >> "$GITHUB_STEP_SUMMARY"
           echo "Not yet device-benchmarked; no FPS guarantee." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload APK and build identity
