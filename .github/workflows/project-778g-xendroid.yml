@@ -1,4 +1,4 @@
-name: Project 778G - Xendroid+ Android baseline
+name: Project 778G - Xendroid+ Snapdragon 778G tuned build
 
 on:
   push:
@@ -64,32 +64,59 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/$ANDROID_NDK_VERSION" >> "$GITHUB_ENV"
           echo "sdk.dir=$ANDROID_SDK_ROOT" > xendroid/local.properties
 
-      - name: Build Xendroid+ debug APK
+      - name: Apply Snapdragon 778G CPU target
+        working-directory: xendroid
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("emulator-core/src/main/cpp/CMakeLists.txt")
+          s = p.read_text()
+          old = "add_compile_options(-march=armv8.2-a+lse+dotprod+fp16+rcpc+crc)"
+          new = "add_compile_options(-mcpu=cortex-a78)"
+          if s.count(old) != 1:
+              raise SystemExit("Expected ARM baseline flag exactly once; refusing unsafe patch")
+          p.write_text(s.replace(old, new))
+          print("Applied Cortex-A78 target for Snapdragon 778G performance cores")
+          PY
+
+      - name: Build optimised Xendroid+ release APK
         working-directory: xendroid
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon --console=plain --build-cache --parallel \
             -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" \
-            -PgitHash="$XENDROID_SHORT_SHA" \
-            :app:assembleDebug
+            -PgitHash="$XENDROID_SHORT_SHA-778G" \
+            -PxendroidReleaseIdSuffix=.778g \
+            -PxendroidReleaseDebuggable \
+            :app:assembleRelease
+          mkdir -p "$HOME/.android"
+          keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android \
+            -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US" -noprompt
+          APK="app/build/outputs/apk/release/app-release-unsigned.apk"
+          test -s "$APK"
+          "$ANDROID_SDK_ROOT/build-tools/$BUILD_TOOLS_VERSION/apksigner" sign \
+            --ks "$HOME/.android/debug.keystore" --ks-pass pass:android --key-pass pass:android \
+            --out app/build/outputs/apk/release/Project-778G-XendroidPlus.apk "$APK"
+          "$ANDROID_SDK_ROOT/build-tools/$BUILD_TOOLS_VERSION/apksigner" verify \
+            app/build/outputs/apk/release/Project-778G-XendroidPlus.apk
 
       - name: Verify APK exists and report identity
         run: |
-          APK="xendroid/app/build/outputs/apk/debug/app-debug.apk"
+          APK="xendroid/app/build/outputs/apk/release/Project-778G-XendroidPlus.apk"
           test -s "$APK"
           sha256sum "$APK" | tee apk-sha256.txt
-          echo "### Project 778G Xendroid+ baseline" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Upstream source commit: `$XENDROID_COMMIT`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Package: `xendroid.compose.debug`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- APK SHA-256: `$(cut -d' ' -f1 apk-sha256.txt)`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- This is an unmodified upstream baseline, not yet a Snapdragon 778G optimisation." >> "$GITHUB_STEP_SUMMARY"
+          echo "Project 778G tuned release; source commit: $XENDROID_COMMIT" >> "$GITHUB_STEP_SUMMARY"
+          echo "Native CPU target: Cortex-A78; Release -O2 + ThinLTO" >> "$GITHUB_STEP_SUMMARY"
+          echo "Package: xendroid.compose.778g" >> "$GITHUB_STEP_SUMMARY"
+          echo "Not yet device-benchmarked; no FPS guarantee." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload APK and build identity
         uses: actions/upload-artifact@v4
         with:
-          name: Project-778G-XendroidPlus-baseline
+          name: Project-778G-XendroidPlus-Snapdragon778G
           path: |
-            xendroid/app/build/outputs/apk/debug/app-debug.apk
+            xendroid/app/build/outputs/apk/release/Project-778G-XendroidPlus.apk
             apk-sha256.txt
           if-no-files-found: error
           retention-days: 14
