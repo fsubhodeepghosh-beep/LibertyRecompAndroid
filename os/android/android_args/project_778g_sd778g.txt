@@ -15,6 +15,10 @@
 --gta4_frame_limit=30
 --gta4_dynamic_draw_distance=true
 --gta4_dynamic_draw_distance_min=0.55
+
+# When below 30 FPS, refresh the environment reflection every other frame.
+# This is an optional GPU-load reduction; compare enabled vs disabled in-game.
+--gta4_fps_guard=1
 --gta4_draw_distance_scale=1.0
 
 # Reduce CPU/GPU scene load.
