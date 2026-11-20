@@ -1,0 +1,36 @@
+# Project 778G: conservative low-end Adreno profile
+# Starting benchmark profile for Snapdragon 778G / Adreno 642L.
+# This is configuration tuning, not a hardware-specific native-code patch.
+# Back up args.txt before replacing it. Restore defaults by deleting args.txt.
+
+--log_level=warn
+
+# Reduce GPU workload: 720p output, half-resolution FSR 1 render, no AA.
+--gta4_output_height_cap=720
+--gta4_native_upscaler=fsr1
+--gta4_fsr1_quality=performance
+--gta4_native_anti_aliasing=off
+
+# Target consistent frame pacing; dynamically reduce world draw distance under load.
+--gta4_frame_limit=30
+--gta4_dynamic_draw_distance=true
+--gta4_dynamic_draw_distance_min=0.55
+--gta4_draw_distance_scale=1.0
+
+# Reduce CPU/GPU scene load.
+--gta4_traffic_density_scale=0.4
+--gta4_parked_car_density_scale=0.4
+--gta4_ped_density_scale=0.4
+--gta4_scenario_ped_density_scale=0.4
+
+# Conservative shadow/reflection settings.
+--gta4_shadow_map_base_size=256
+--gta4_shadow_distance_scale=1.0
+--gta4_reflection_resolution=original
+--gta4_reflection_capture_distance=near
+--gta4_reflection_aa=off
+
+--gta4_motion_blur=false
+--gta4_native_max_queued_frames=3
+--gta4_profile_native_detailed_cpu=false
+--gta4_profile_native_detailed_gpu=false
