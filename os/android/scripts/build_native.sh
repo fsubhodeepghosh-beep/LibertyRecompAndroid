@@ -17,7 +17,10 @@ python "$APP_DIR/scripts/materialize_symlinks.py"
 # Snapdragon 865 and every Android 10+ arm64 device we target are ARMv8.2:
 # inline LSE atomics instead of outline-atomic calls, and native ELF TLS
 # (API 29+) instead of emulated TLS. Both are hot in the guest thread.
-CPU_FLAGS="-march=armv8.2-a -fno-emulated-tls"
+# Snapdragon 778G (Kryo 670) performance cores are Cortex-A78-class.
+# -mtune changes scheduling choices only; -march remains ARMv8.2-A so the
+# binary stays compatible with the LITTLE cores as well.
+CPU_FLAGS="-march=armv8.2-a -mtune=cortex-a78 -fno-emulated-tls"
 if [ ! -f "$BUILD_DIR/build.ninja" ] || ! grep -q -- "-fno-emulated-tls" "$BUILD_DIR/CMakeCache.txt"; then
   echo "== configuring $BUILD_TYPE in $BUILD_DIR"
   cmake -S "$REPO" -B "$BUILD_DIR" -G Ninja \
