@@ -74,6 +74,7 @@ jobs:
         shell: bash
         env:
           STRIP: "1"
+          BUILD_TYPE: "Release"
         run: |
           set -euo pipefail
 
